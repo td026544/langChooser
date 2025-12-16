@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTS 語音測試 (複製完整資訊)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 600px;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.2rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #666;
+            font-weight: bold;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        select {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+            overflow: hidden; 
+            text-overflow: ellipsis;
+        }
+
+        /* 複製按鈕 */
+        .btn-copy {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 15px;
+            white-space: nowrap;
+        }
+        .btn-copy:hover {
+            background-color: #218838;
+        }
+        .btn-copy:active {
+            transform: translateY(1px);
+        }
+
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .btn-speak {
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .btn-speak:hover {
+            background-color: #0056b3;
+        }
+
+        button {
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        
+        button:disabled {
+            background-color: #cccccc !important;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: monospace; /* 用等寬字體顯示 JSON 比較好看 */
+            color: #555;
+            text-align: center;
+            min-height: 20px;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🗣️ 語音合成測試工具</h1>
+
+        <div class="form-group">
+            <label for="voiceSelect">選擇語音:</label>
+            <div class="input-group">
+                <select id="voiceSelect">
+                    <option value="" disabled selected>載入語音列表中...</option>
+                </select>
+                <button id="copyBtn" class="btn-copy">📋 複製 JSON</button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="textInput">測試文字:</label>
+            <textarea id="textInput" placeholder="輸入文字來測試發音...">Hello world, this is a test.</textarea>
+        </div>
+
+        <button id="speakBtn" class="btn-speak">▶️ 播放 (Speak)</button>
+        
+        <div id="statusMsg" class="status">準備就緒</div>
+    </div>
+
+    <script>
+        const synth = window.speechSynthesis;
+        const voiceSelect = document.getElementById('voiceSelect');
+        const textInput = document.getElementById('textInput');
+        const speakBtn = document.getElementById('speakBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const statusMsg = document.getElementById('statusMsg');
+
+        let voices = [];
+
+        function populateVoiceList() {
+            voices = synth.getVoices();
+            if(voices.length === 0) return;
+
+            const selectedIndex = voiceSelect.selectedIndex;
+            voiceSelect.innerHTML = '';
+
+            voices.forEach((voice, index) => {
+                const option = document.createElement('option');
+                // 選單顯示名稱跟語言，方便辨識
+                option.textContent = `${voice.name} (${voice.lang})`;
+                
+                if (voice.default) {
+                    option.textContent += ' -- DEFAULT';
+                }
+
+                option.value = index; 
+                voiceSelect.appendChild(option);
+            });
+
+            if (selectedIndex > 0 && selectedIndex < voices.length) {
+                voiceSelect.selectedIndex = selectedIndex;
+            }
+        }
+
+        populateVoiceList();
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = populateVoiceList;
+        }
+
+        // --- 核心修改：複製 Name 和 Lang ---
+        copyBtn.addEventListener('click', () => {
+            const index = voiceSelect.value;
+            
+            if (index === "" || !voices[index]) {
+                statusMsg.textContent = "⚠️ 請先等待語音列表載入";
+                return;
+            }
+
+            const selectedVoice = voices[index];
+            
+            // 建立一個物件包含 name 和 lang
+            const voiceInfo = {
+                name: selectedVoice.name,
+                lang: selectedVoice.lang
+            };
+
+            // 轉成 JSON 字串以便複製
+            const textToCopy = JSON.stringify(voiceInfo);
+
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                statusMsg.style.color = "#155724";
+                statusMsg.style.backgroundColor = "#d4edda";
+                // 顯示複製的內容給使用者看
+                statusMsg.textContent = `✅ 已複製: ${textToCopy}`;
+                
+                setTimeout(() => {
+                    statusMsg.style.color = "#555";
+                    statusMsg.style.backgroundColor = "#f8f9fa";
+                    statusMsg.textContent = "準備就緒";
+                }, 3000);
+            }).catch(err => {
+                console.error('複製失敗: ', err);
+                statusMsg.textContent = "❌ 複製失敗";
+            });
+        });
+
+        // --- 播放功能 ---
+        speakBtn.addEventListener('click', () => {
+            const text = textInput.value;
+            if (text === '') {
+                statusMsg.textContent = "⚠️ 請輸入文字";
+                return;
+            }
+
+            if (synth.speaking) {
+                synth.cancel();
+            }
+
+            const utterThis = new SpeechSynthesisUtterance(text);
+            const index = voiceSelect.value;
+            if (index !== "" && voices[index]) {
+                utterThis.voice = voices[index];
+                // 建議也明確設定 lang 屬性，雖然指定 voice 物件通常就夠了，但設了更保險
+                utterThis.lang = voices[index].lang; 
+            }
+
+            utterThis.onstart = () => {
+                speakBtn.disabled = true;
+                statusMsg.textContent = "🔊 正在播放...";
+            };
+
+            utterThis.onend = () => {
+                speakBtn.disabled = false;
+                statusMsg.textContent = "✅ 播放結束";
+            };
+
+            utterThis.onerror = (event) => {
+                speakBtn.disabled = false;
+                statusMsg.textContent = "❌ 發生錯誤";
+                console.error('Error:', event);
+            };
+
+            synth.speak(utterThis);
+        });
+    </script>
+</body>
+</html>
